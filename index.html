@@ -1,124 +1,170 @@
- <!-- Just enter the name and Image of the user  -->
 <html>
-    <head>
-        <title>Webcam</title>
-        <style>
-                #container {
-                    margin: 0px auto;
-                    width: 500px;
-                    height: 375px;
-                    border: 10px #333 solid;
-                }
-                #videoElement {
-                    top: 0;
-                    left:0;
-                    width: 500px;
-                    height: 375px;
-                    background-color: #666;
-                }
-                #overlay, .overlay {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-            }
-        </style>
-    </head>
-    <body>
-            <!-- <div id="container"> -->
-            <canvas id="canvas" class="overlay"></canvas>
-            <video autoplay="true" id="videoElement"></video>
-                   
-            <!-- </div> -->
-            
-        <script src="js/jquery-2.1.1.min.js"></script>
-        <script src="js/face-api.js"></script>
-        <script>
+	<head>
+		<title>Webcam</title>
+		<style>
+			#videoElement {
+				display: none;
+				position: fixed;
+				top: 50%;
+				left: 50%;
+				width: 1000px;
+				height: 720px;
+				background-color: #666;
+				transform: translate(-50%, -50%);
+			}
+			#overlay,
+			.overlay {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+			}
+		</style>
+		<link rel="stylesheet" href="style.css" />
+	</head>
+	<body>
+		<div class="login-container">
+			<form action="">
+				<h1>LOGIN</h1>
+				<div>
+					<label>Username</label>
+					<input
+						type="text"
+						name="username"
+						placeholder="Enter your username here"
+						value=""
+					/>
+				</div>
+				<!-- <div>
+					<label>Password</label>
+					<input
+						type="password"
+						name="password"
+						placeholder="Enter your password here"
+						value=""
+					/>
+				</div> -->
+				<input onClick="det()" name="login" value="LOGIN" class="sub" />
+			</form>
+		</div>
+		<canvas id="canvas" class="overlay"></canvas>
+		<video autoplay="true" id="videoElement"></video>
 
-          $(document).ready(function(){
+		<script src="js/jquery-2.1.1.min.js"></script>
+		<script src="js/face-api.js"></script>
+		<script>
+			const det = () => {
+				document.querySelector('#videoElement').style.display = 'block';
+				$(document).ready(function () {
+					let video = document.querySelector('#videoElement');
+					let currentStream;
+					let displaySize;
 
-           
+					if (navigator.mediaDevices.getUserMedia) {
+						navigator.mediaDevices
+							.getUserMedia({ video: true })
+							.then(function (stream) {
+								video.srcObject = stream;
+							})
+							.catch(function (err0r) {
+								console.log('Something went wrong!');
+							});
+					}
 
-                let video = document.querySelector("#videoElement");
-                let currentStream;
-                let displaySize;
+					let temp = [];
+					$('#videoElement').bind('loadedmetadata', function () {
+						displaySize = {
+							width: this.scrollWidth,
+							height: this.scrollHeight,
+						};
 
-                if (navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(function (stream) {
-                    video.srcObject = stream;
-                    })
-                    .catch(function (err0r) {
-                    console.log("Something went wrong!");
-                    });
-                }
-                
-                let temp = []
-                $("#videoElement").bind("loadedmetadata", function(){
-                    displaySize = { width:this.scrollWidth, height: this.scrollHeight }
+						async function detect() {
+							const MODEL_URL = '/models';
 
-                    async function detect(){
+							await faceapi.loadSsdMobilenetv1Model(MODEL_URL);
+							await faceapi.loadFaceLandmarkModel(MODEL_URL);
+							await faceapi.loadFaceRecognitionModel(MODEL_URL);
 
-                        const MODEL_URL = '/models'
+							let canvas = $('#canvas').get(0);
 
-                        await faceapi.loadSsdMobilenetv1Model(MODEL_URL)
-                        await faceapi.loadFaceLandmarkModel(MODEL_URL)
-                        await faceapi.loadFaceRecognitionModel(MODEL_URL)
+							facedetection = setInterval(async () => {
+								let fullFaceDescriptions = await faceapi
+									.detectAllFaces(video)
+									.withFaceLandmarks()
+									.withFaceDescriptors();
+								let canvas = $('#canvas').get(0);
+								faceapi.matchDimensions(canvas, displaySize);
 
-                        let canvas = $("#canvas").get(0);
+								const fullFaceDescription = faceapi.resizeResults(
+									fullFaceDescriptions,
+									displaySize
+								);
+								// faceapi.draw.drawDetections(canvas, fullFaceDescriptions)
 
-                        facedetection = setInterval(async () =>{
+								const labels = ['img/Narayan'];
 
-                            let fullFaceDescriptions = await faceapi.detectAllFaces(video).withFaceLandmarks().withFaceDescriptors()
-                            let canvas = $("#canvas").get(0);
-                            faceapi.matchDimensions(canvas, displaySize)
+								const labeledFaceDescriptors = await Promise.all(
+									labels.map(async (label) => {
+										// fetch image data from urls and convert blob to HTMLImage element
+										const imgUrl = `${label}.jpg`;
+										const img = await faceapi.fetchImage(
+											imgUrl
+										);
+										console.log(label + 'loaded');
+										// detect the face with the highest score in the image and compute it's landmarks and face descriptor
+										const fullFaceDescription = await faceapi
+											.detectSingleFace(img)
+											.withFaceLandmarks()
+											.withFaceDescriptor();
 
-                            const fullFaceDescription = faceapi.resizeResults(fullFaceDescriptions, displaySize)
-                            // faceapi.draw.drawDetections(canvas, fullFaceDescriptions)
+										if (!fullFaceDescription) {
+											throw new Error(
+												`no faces detected for ${label}`
+											);
+											console.log('Are you dead');
+										}
 
-                            const labels = ["img/Manas"]
+										const faceDescriptors = [
+											fullFaceDescription.descriptor,
+										];
+										return new faceapi.LabeledFaceDescriptors(
+											label,
+											faceDescriptors
+										);
+									})
+								);
 
-                            const labeledFaceDescriptors = await Promise.all(
-                                labels.map(async label => {
-                                    // fetch image data from urls and convert blob to HTMLImage element
-                                    const imgUrl = `${label}.jpg`
-                                    const img = await faceapi.fetchImage(imgUrl)
-                                    console.log(label + 'loaded')
-                                    // detect the face with the highest score in the image and compute it's landmarks and face descriptor
-                                    const fullFaceDescription = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
-                                    
-                                    if (!fullFaceDescription) {
-                                    throw new Error(`no faces detected for ${label}`)
-                                    console.log('Are you dead')
-                                    }
-                                    
-                                    const faceDescriptors = [fullFaceDescription.descriptor]
-                                    return new faceapi.LabeledFaceDescriptors(label, faceDescriptors)
-                                })
-                            );
+								const maxDescriptorDistance = 0.6;
+								const faceMatcher = new faceapi.FaceMatcher(
+									labeledFaceDescriptors,
+									maxDescriptorDistance
+								);
 
-                            const maxDescriptorDistance = 0.6
-                            const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, maxDescriptorDistance)
+								const results = fullFaceDescriptions.map((fd) =>
+									faceMatcher.findBestMatch(fd.descriptor)
+								);
 
-                            const results = fullFaceDescriptions.map(fd => faceMatcher.findBestMatch(fd.descriptor))
+								results.forEach((bestMatch, i) => {
+									const box =
+										fullFaceDescriptions[i].detection.box;
+									const text = bestMatch.toString();
+									const drawBox = new faceapi.draw.DrawBox(
+										box,
+										{
+											label: text,
+										}
+									);
+									drawBox.draw(canvas);
+									console.log('face detected');
+								});
+							}, 300);
 
-                            results.forEach((bestMatch, i) => {
-                                const box = fullFaceDescriptions[i].detection.box
-                                const text = bestMatch.toString()
-                                const drawBox = new faceapi.draw.DrawBox(box, { label: text })
-                                drawBox.draw(canvas)
-                            })
-
-                        },300);
-
-                        console.log(displaySize)
-                    }
-                    detect()
-                    
-                });   
-
-          })  
-
-            
-        </script>
-    </body>
+							console.log(displaySize);
+							// Face detected fo the request here
+						}
+						detect();
+					});
+				});
+			};
+		</script>
+	</body>
 </html>
